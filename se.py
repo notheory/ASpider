@@ -3,7 +3,7 @@ import urllib
 import urllib2
 import re
 import gzip
-import StringIO
+from StringIO import StringIO
 import time
 import codecs
 import random
@@ -165,9 +165,48 @@ def get_announcement_all():
         write(f, line)                                  # 写入文件
     close_file(f)
 
+
+# 获取交易所公布的停复牌公告
+# @update: 9.2
+# @return: 当日最新的停复牌公告
+# @suggestion: 建议在每天早晨9点调用？
+def get_suspend_and_resume(date=None):
+    if date is None:
+        date = datetime.now().strftime('%Y-%m-%d')  # 当前日期时间
+    url = 'http://www.szse.cn/szseWeb/FrontController.szse'  # 访问目标URL
+    headers = {'Accept': '*/*',
+               'Accept-Encoding': 'gzip, deflate',
+               'Accept-Language': 'zh-CN,zh;q=0.8',
+               'Connection': 'keep-alive',
+               'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+               'Host': 'www.szse.cn',
+               'Origin': 'http://www.szse.cn',
+               'Referer': 'http://www.szse.cn/main/disclosure/news/tfpts/'}  # 生成访问头
+    data = urllib.urlencode({'ACTIONID': '7', 'AJAX': 'AJAX-TRUE', 'CATALOGID': '1798',
+                             'TABKEY': 'tab1', 'REPORT_ACTION': 'search',
+                             'txtKsrq': date, 'txtZzrq': date})
+    result = request2url(url, headers, data)  # 请求目标网页
+    buf = StringIO(result)
+    f = gzip.GzipFile(fileobj=buf)
+    result = f.read()
+    result = result.decode('gbk')  # 转换编码
+    pattern_code = re.compile(ur'<td  align=\'center\'  >([0-9]{6})?</td>'
+                              ur'<td  width=\'70\'  align=\'center\'  >(.{2,4})?</td>')
+    pattern_decision = re.compile(ur'<td  align=\'center\'  >(.{2,4})?</td><td  align=\'left\'  >(.{2,6})?</td>')
+    pattern_code_result = pattern_code.findall(result)
+    pattern_decision_result = pattern_decision.findall(result)
+    df = pd.DataFrame()
+    for i in range(0, len(pattern_code_result)):
+        df = df.append([[pattern_code_result[i][0], pattern_code_result[i][1],
+                         pattern_decision_result[i][0], pattern_decision_result[i][1]]])
+    df.columns = ['code', 'name', 'limit', 'reason']
+    df.index = df.iloc[:, 0]
+    print df
+
 # get_announcement_range('2017-08-28', '2017-08-28')
 # get_announcement_all()
-get_longhubang('2017-08-25', '2017-08-25')
+# get_longhubang('2017-08-25', '2017-08-25')
 # get_announcement_list()
+get_suspend_and_resume('2017-09-01')
 # get_stocks_list()
 
